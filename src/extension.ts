@@ -11,45 +11,45 @@ const updateCommitMessageField = (repo: Repo) => {
     const currentMessage = repo.inputBox.value;
     const newMessage = generateMessage(branchData, currentMessage);
     if (currentMessage !== newMessage) {
+      vscode.window.showInformationMessage(
+        `Updating commit message field:\n${newMessage}`
+      );
       repo.inputBox.value = newMessage;
     }
   }
 };
 
 export async function activate(context: vscode.ExtensionContext) {
-  console.log(
-    'Congratulations, your extension "commit-message-structure-generator" is now active!'
+  vscode.window.showInformationMessage(
+    'Extension "commit-message-structure-generator" activated!'
   );
-  const disposable = vscode.commands.registerCommand(
-    "commit-message-structure-generator.helloWorld",
-    () => {
-      vscode.window.showInformationMessage(
-        "Hello World from commit-message-structure-generator!"
-      );
-    }
-  );
-  context.subscriptions.push(disposable);
-
   const git = await getGitAPI();
   if (!git) {
+    vscode.window.showErrorMessage("Git API not found.");
     return;
   }
 
   git.repositories.forEach((repo: Repo) => {
     repo.state.onDidChange(() => {
+      vscode.window.showInformationMessage("Repository state changed.");
       updateCommitMessageField(repo);
     });
+
     let debounceTimer: NodeJS.Timeout | undefined;
-    if (repo.inputBox && typeof repo.inputBox.onDidChange === "function") {
-      repo.inputBox.onDidChange(() => {
+    let lastValue = repo.inputBox.value;
+    const pollInterval = setInterval(() => {
+      if (repo.inputBox.value !== lastValue) {
+        lastValue = repo.inputBox.value;
         if (debounceTimer) {
           clearTimeout(debounceTimer);
         }
         debounceTimer = setTimeout(() => {
           updateCommitMessageField(repo);
-        }, 1000);
-      });
-    }
+          debounceTimer = undefined;
+        }, 1500);
+      }
+    }, 300);
+    context.subscriptions.push({ dispose: () => clearInterval(pollInterval) });
   });
 }
 
